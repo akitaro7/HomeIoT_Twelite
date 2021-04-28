@@ -1,0 +1,13 @@
+{
+    "files.associations": {
+        "sprintf.h": "c",
+        "type_traits": "c",
+        "basicio.h": "c",
+        "toconet.h": "c",
+        "utils.h": "c",
+        "string.h": "c",
+        "stddef.h": "c",
+        "mysensorif.h": "c"
+    },
+    "files.autoGuessEncoding": true
+}
