@@ -7,7 +7,9 @@
         "utils.h": "c",
         "string.h": "c",
         "stddef.h": "c",
-        "mysensorif.h": "c"
+        "mysensorif.h": "c",
+        "sht31.h": "c",
+        "myradiokey.h": "c"
     },
     "files.autoGuessEncoding": true
 }

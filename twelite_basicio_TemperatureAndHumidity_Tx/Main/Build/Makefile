@@ -48,6 +48,7 @@ include ../Version.mk
 #APPSRC += $(TARGET_DIR).c
 APPSRC += basicio.c
 APPSRC += main.c
+APPSRC += sht31.c
 
 ### Target type
 # アプリケーション(.bin)をビルドするか、ライブラリ(.a)にするか指定します。

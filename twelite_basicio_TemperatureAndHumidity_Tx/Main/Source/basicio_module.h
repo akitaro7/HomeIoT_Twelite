@@ -11,12 +11,12 @@
  */
 #define USE_DIO           //ＤＩＯ関数を使用する
 #define USE_TIMER         //タイマー系（タイマー、ＰＷＭなど）関数を使用する
-//#define USE_SERIAL        //シリアル0関数を使用する
+#define USE_SERIAL        //シリアル0関数を使用する
 //#define USE_SERIAL1       //シリアル1関数を使用する
 #define USE_ADC           //ADC関数を使用する
 //#define USE_COMP          //コンパレータ関数を使用する
 //#define USE_PC            //パルスカウンタ関数を使用する
-//#define USE_I2C           //I2C(マスター)通信を使用する
+#define USE_I2C           //I2C(マスター)通信を使用する
 //#define USE_I2CS          //I2C(スレーブ)通信を使用する
 //#define USE_SPI           //SPI(マスター)通信を使用する
 #define USE_RADIO         //無線通信を使用する(送受信)

@@ -744,10 +744,12 @@ extern void i2c_disable();
 
 //コマンド書き込みを伴う書き込み
 extern bool_t i2c_write(uint16_t u16Address, uint8_t u8Command, const uint8* pu8Data, uint8_t u8Length);
+extern bool_t i2c_write2(uint16_t u16Address, uint16_t u16Command, const uint8* pu8Data, uint8_t u8Length);
 extern bool_t i2c_writeByte(uint16_t u16Address, uint8_t u8Command, uint8_t u8Data);
 
 //コマンド書き込みを伴う読み込み
 extern bool_t i2c_read(uint16_t u16Address, uint8_t u8Command, uint8* pu8Data, uint8_t u8Length);
+extern bool_t i2c_read2(uint16_t u16Address, uint16_t u16Command, uint8* pu8Data, uint8_t u8Length);
 extern int16_t i2c_readByte(uint16_t u16Address, uint8_t u8Command);
 
 //書き込むだけ

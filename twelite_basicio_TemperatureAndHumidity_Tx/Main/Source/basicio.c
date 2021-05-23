@@ -1971,6 +1971,58 @@ bool_t i2c_write(uint16_t u16Address, uint8_t u8Command, const uint8* pu8Data, u
 	return TRUE;
 }
 
+//I2Cで指定アドレスに2byteコマンドとデータを書き込む。データが無いときはpu8Data=NULL,u8Length=0とする
+//事前にi2c_setAddressingMode()でアドレスサイズを設定しておくこと。デフォルトは７ビット
+bool_t i2c_write2(uint16_t u16Address, uint16_t u16Command, const uint8* pu8Data, uint8_t u8Length)
+{
+    if (pu8Data == NULL) u8Length = 0;
+
+    //アドレス設定
+    if (!setAddress(FALSE, u16Address)) return FALSE;
+
+	bool_t bCommandSent = FALSE;
+    bool_t bCommandFirst = TRUE;
+
+	while(bCommandSent == FALSE || u8Length > 0){
+		if(!bCommandSent) {
+            uint8_t u8Command;
+            if (bCommandFirst) {
+                u8Command = (u16Command>>8) & 0xff;
+                bCommandFirst = FALSE;
+            } else {
+                u8Command = u16Command & 0xff;
+                bCommandSent = TRUE;
+            }
+			//コマンド送信
+			vAHI_SiMasterWriteData8(u8Command);
+		} else {
+			u8Length--;
+			//データ送信
+			vAHI_SiMasterWriteData8(*pu8Data++);
+		}
+		if(u8Length == 0 && bCommandSent == TRUE){
+            //最後のバイトを送り出す
+			vAHI_SiMasterSetCmdReg(E_AHI_SI_NO_START_BIT,
+							 E_AHI_SI_STOP_BIT,         //STOP
+							 E_AHI_SI_NO_SLAVE_READ,
+							 E_AHI_SI_SLAVE_WRITE,      //WRITE
+							 E_AHI_SI_SEND_ACK,         //ACK
+							 E_AHI_SI_NO_IRQ_ACK);
+
+		} else {
+            //途中のバイトを送り出す
+			vAHI_SiMasterSetCmdReg(E_AHI_SI_NO_START_BIT,
+							 E_AHI_SI_NO_STOP_BIT,
+							 E_AHI_SI_NO_SLAVE_READ,
+							 E_AHI_SI_SLAVE_WRITE,      //WRITE
+							 E_AHI_SI_SEND_ACK,         //ACK
+							 E_AHI_SI_NO_IRQ_ACK);
+		}
+		if(!i2cWait()) return FALSE;
+	}
+	return TRUE;
+}
+
 //I2Cで指定アドレスにコマンドとデータを書き込む。データが無いときはpu8Data=NULL,u8Length=0とする
 //事前にi2c_setAddressingMode()でアドレスサイズを設定しておくこと。デフォルトは７ビット
 bool_t i2c_writeOnly(uint16_t u16Address, const uint8* pu8Data, uint8_t u8Length)
@@ -2040,6 +2092,15 @@ bool_t i2c_readOnly(uint16_t u16Address, uint8* pu8Data, uint8_t u8Length)
 //I2Cで指定アドレスのコマンドからデータを読み出します
 bool_t i2c_read(uint16_t u16Address, uint8_t u8Command, uint8* pu8Data, uint8_t u8Length) {
     if (!i2c_write(u16Address, u8Command, NULL, 0)) return FALSE;
+    if (pu8Data != NULL && u8Length > 0) {
+        if (!i2c_readOnly(u16Address, pu8Data, u8Length)) return FALSE;
+    }
+    return TRUE;
+}
+
+//I2Cで指定アドレスの2byteコマンドからデータを読み出します
+bool_t i2c_read2(uint16_t u16Address, uint16_t u16Command, uint8* pu8Data, uint8_t u8Length) {
+    if (!i2c_write2(u16Address, u16Command, NULL, 0)) return FALSE;
     if (pu8Data != NULL && u8Length > 0) {
         if (!i2c_readOnly(u16Address, pu8Data, u8Length)) return FALSE;
     }

@@ -4,17 +4,17 @@
 #include "basicio.h"
 #include "mySensorIF.h"
 #include "myRadioKey.h"
+#include "sht31.h"
 
 #define LED 16
 
 //アナログデジタル変換
-#define ADC_CNT 4
-#define ADC_TGT (ADC_SOURCE_BITMAP_1 | ADC_SOURCE_BITMAP_3 | ADC_SOURCE_BITMAP_TEMP | ADC_SOURCE_BITMAP_VOLT)
+#define ADC_CNT 2
+#define ADC_TGT (ADC_SOURCE_BITMAP_TEMP | ADC_SOURCE_BITMAP_VOLT)
 
 //送信名称
-#define TX_NAME ("SR_UV")  //MAX7文字
+#define TX_NAME ("BR_TH")  //MAX7文字
 
-bool_t bDone = FALSE;
 uint16_t u16AdcData[ADC_CNT] = {};
 uint32_t cntTxTimes = 0;
 mySensorIF_t_typ txData;
@@ -65,20 +65,6 @@ void sendDataBuff()
 
 //ADC変換が完了した
 void adcDone() {
-
-    //バッファに格納されたAD変換結果は10ビットの生値であるため、adc_convertResults() によって単位変換する
-    bool_t ret;
-    ret = adc_convertResults(
-        ADC_TGT,    //測定対象を指定します。
-        u16AdcData,
-        ADC_CNT);
-
-    //ADCは必要なくなったので電源OFF
-    adc_disable();
-
-    if (ret == FALSE)
-        return;
-    
     //送信データクリア
     memset(&txData, 0, sizeof(txData));
 
@@ -88,11 +74,14 @@ void adcDone() {
     //送信の共通情報を設定
     setTxHeadData();
 
-    //センサデータを設定
-    //紫外線モジュールのPDH、PDLの差分を計算する
-    pushSensorData("DIFF", (int32_t)(u16AdcData[0]) - (int32_t)(u16AdcData[1]));
-    pushSensorData("PDH", (int32_t)(u16AdcData[0]));
-    pushSensorData("PDL", (int32_t)(u16AdcData[1]));
+    // センサデータを読み出して送信する
+    int32_t temp, hum;
+    temp = (int32_t)(sht31_getTemperature() * 1000.0) ;
+    hum = (int32_t)(sht31_getHumidity() * 1000.0) ;
+
+    //センサデータを無線送信データへ設定
+    pushSensorData("TEMP", temp);
+    pushSensorData("HUM", hum);
 
     //************************************************************
     //送信データの設定は【ここまで】で行う
@@ -101,7 +90,7 @@ void adcDone() {
     //無線データ送信バッファをすべて送信する
     sendDataBuff();
 
-    bDone = TRUE;
+    sht31_sta = E_SHT31_SEND_END;
 }
 
 // 起動時や起床時に呼ばれる関数
@@ -123,18 +112,17 @@ void setup(bool_t warmWake, uint32_t bitmapWakeStatus) {
         ADC_CLOCK_500KHZ,     //ADCクロック 500KHZ
         FALSE);               //内部の基準電圧を使用
 
-    //ADC開始
-    adc_attachCallbackWithTimer(
-        0,                  //タイマー番号。0~４
-        0,                  //プリスケーラー。 0~16
-        0,                  //呼び出し周期を決定する16ビットカウンタの目標値。
-        FALSE,              //0V～基準電圧×1　(内部基準電圧使用時、0V～1.235V)
-        ADC_TGT,            //測定対象を指定します。
-        u16AdcData,         //結果を格納するバッファ。uint_16t型配列。
-        ADC_CNT,            //バッファの要素数。2～2047
-        FALSE,              //FALSE バッファがいっぱいになったら終了
-        ADC_INT_FULL ,      //バッファいっぱいまで変換結果が書き込まれたとき
-        adcDone);           //コールバック関数
+    //センサステータスを初期化
+    sht31_sta = E_SHT31_NOSTA;
+
+    // I2C通信を有効にします。
+    i2c_enable(I2C_CLOCK_100KHZ,     // 通信速度
+                FALSE);              // 使用ピンセット切り替え
+
+    //シリアル0の初期化
+    serial_init(
+        SERIAL_BAUD_115200 //ボーレート
+        );
 }
 
 // setup()後、３種類のイベントで呼ばれるループ関数
@@ -151,13 +139,46 @@ void loop(EVENTS event) {
     } else if (event == EVENT_TICK_TIMER) {
         // 4ミリ秒毎(デフォルト)に呼ばれる
 
-        if (bDone && radio_txCount() == 0) {
+        switch (sht31_sta) {
+            case E_SHT31_NOSTA:
+            {
+                sht31_reset();
+                break;
+            }
+            case E_SHT31_INIT_END:
+            {
+                sht31_readTempHum();
+            }
+            default:
+                break;
+        }
+
+        if (sht31_sta == E_SHT31_READ_END) {
+            //ADC開始
+            adc_attachCallbackWithTimer(
+                0,                  //タイマー番号。0~４
+                0,                  //プリスケーラー。 0~16
+                0,                  //呼び出し周期を決定する16ビットカウンタの目標値。
+                FALSE,              //0V～基準電圧×1　(内部基準電圧使用時、0V～1.235V)
+                ADC_TGT,            //測定対象を指定します。
+                u16AdcData,         //結果を格納するバッファ。uint_16t型配列。
+                ADC_CNT,            //バッファの要素数。2～2047
+                FALSE,              //FALSE バッファがいっぱいになったら終了
+                ADC_INT_FULL ,      //バッファいっぱいまで変換結果が書き込まれたとき
+                adcDone);           //コールバック関数
+                
+            sht31_sta = E_SHT31_SEND_WAIT;
+        }
+        else if (sht31_sta == E_SHT31_SEND_END && radio_txCount() == 0) {
             // 動作確認用のLED消灯
             dio_write(LED, LOW);
 
             //AD変換が完了し、無線送信中のデータもなくなった
             //10秒後起床でスリープする
             sleepTimer(10000, FALSE);
+        }
+        else {
+            //nop
         }
     }
 }
